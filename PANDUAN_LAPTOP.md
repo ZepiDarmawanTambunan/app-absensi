@@ -28,16 +28,30 @@ otomatis saat pertama kali dijalankan.
 
 ## 3. Sambungkan HP
 
+### Opsi A — Tailscale (disarankan: HP tidak harus satu WiFi)
+
+1. Install **Tailscale** di laptop dan di HP, login dengan akun yang sama
+   (atau undang HP ke tailnet kamu). Download: https://tailscale.com/download
+2. Di laptop, lihat IP Tailscale-nya:
+   `tailscale ip -4` → contoh `100.101.102.103`
+3. Di aplikasi Flutter, set base URL API ke IP Tailscale laptop:
+   `API_BASE_URL=http://100.101.102.103:8080`
+   (build dengan `--dart-define API_BASE_URL=...`).
+4. Keuntungan: HP bisa memakai data seluler / WiFi mana pun, tidak harus
+   satu jaringan dengan laptop.
+
+### Opsi B — satu WiFi (tanpa Tailscale)
+
 1. Cari **IP LAN laptop** (contoh `192.168.1.50`):
    - Windows: `ipconfig` → lihat *IPv4 Address* pada adapter WiFi
    - macOS/Linux: `ip addr` / `ifconfig`
 2. Di HP, buka browser dan tes: `http://192.168.1.50:8080/health`
    (ganti dengan IP laptop kamu). Kalau OK, jaringan beres.
-3. Di aplikasi Flutter, set base URL API ke IP tersebut:
-   `API_BASE_URL=http://192.168.1.50:8080`
-   (build dengan `--dart-define API_BASE_URL=...`).
-4. Login awal: **admin@example.com** / **admin123** — segera ganti
-   password-nya setelah masuk.
+3. Di aplikasi Flutter: `API_BASE_URL=http://192.168.1.50:8080`.
+
+### Login awal
+
+**admin@example.com** / **admin123** — segera ganti password-nya setelah masuk.
 
 ## 4. Perintah berguna
 
