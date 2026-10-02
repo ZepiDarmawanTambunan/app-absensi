@@ -1,0 +1,34 @@
+name: app_absensi
+description: Aplikasi absensi pegawai dengan face recognition (Android & iOS).
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+  dio: ^5.9.0
+  flutter_secure_storage: ^10.0.0
+  shared_preferences: ^2.5.3
+  camera: ^0.11.3
+  google_mlkit_face_detection: ^0.13.1
+  tflite_flutter: ^0.11.0
+  permission_handler: ^12.0.1
+  device_info_plus: ^12.1.0
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/
