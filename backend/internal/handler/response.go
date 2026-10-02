@@ -50,9 +50,16 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 // statusFor maps domain errors to HTTP status codes.
 func statusFor(err error) int {
 	var ve service.ValidationError
+	var locked *service.FaceLockedError
 	switch {
 	case errors.As(err, &ve):
 		return http.StatusBadRequest
+	case errors.Is(err, service.ErrChallengeNotFound),
+		errors.Is(err, service.ErrChallengeExpired),
+		errors.Is(err, service.ErrChallengeUsed):
+		return http.StatusBadRequest
+	case errors.As(err, &locked):
+		return http.StatusLocked
 	case errors.Is(err, repository.ErrNotFound),
 		errors.Is(err, service.ErrEmployeeNotFound),
 		errors.Is(err, service.ErrNoOpenCheckIn),
@@ -81,6 +88,8 @@ func errorCode(status int) string {
 		return "not_found"
 	case http.StatusConflict:
 		return "conflict"
+	case http.StatusLocked:
+		return "locked"
 	default:
 		return "internal_error"
 	}

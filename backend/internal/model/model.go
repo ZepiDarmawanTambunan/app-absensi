@@ -76,3 +76,15 @@ type FaceEnrollment struct {
 	QualityScore float64   `json:"quality_score"`
 	EnrolledAt   time.Time `json:"enrolled_at"`
 }
+
+// SpoofAttempt is one rejected liveness check (Milestone 3 anti-spoofing
+// audit log). Repeated attempts within the lockout window temporarily
+// lock face verification for the employee.
+type SpoofAttempt struct {
+	ID            int64     `json:"id"`
+	EmployeeID    int64     `json:"employee_id"`
+	LivenessScore float64   `json:"liveness_score"`
+	Reason        string    `json:"reason"`
+	DeviceID      *string   `json:"device_id,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}

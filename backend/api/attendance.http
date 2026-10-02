@@ -90,7 +90,14 @@ Authorization: <redacted>
   "quality_scores": [0.92, 0.87]
 }
 
-### 11. Verify face 1:1 (Milestone 2)
+### 11. Issue liveness challenge (Milestone 3)
+# Lakukan tantangan ini di aplikasi mobile, lalu sertakan challenge_id saat verify.
+GET {{base}}/face/challenge
+Authorization: <redacted>
+
+### 12. Verify face 1:1 with liveness (Milestone 3)
+# liveness_score wajib (kecuali FACE_LIVENESS_REQUIRED=false).
+# Di bawah 0.70 -> match=false + tercatat di spoof_attempts.
 POST {{base}}/face/verify
 Content-Type: {{contentType}}
 Authorization: <redacted>
@@ -98,5 +105,7 @@ Authorization: <redacted>
 {
   "employee_id": 1,
   "embedding": [0.12, -0.34, 0.56],
-  "liveness_score": 0.95
+  "liveness_score": 0.95,
+  "device_id": "dev-1",
+  "challenge_id": "ganti-dengan-challenge-id-dari-langkah-11"
 }

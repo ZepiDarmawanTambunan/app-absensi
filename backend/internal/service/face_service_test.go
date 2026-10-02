@@ -73,7 +73,7 @@ func newFaceServiceFixture() (*FaceService, *fakeFaceEmployeeStore, *fakeFaceSto
 		2: {ID: 2, EmployeeNo: "EMP002", Name: "Siti", IsActive: false},
 	}}
 	faces := newFakeFaceStore()
-	svc := NewFaceService(nil, emps, faces, fakeFaceTransact, DefaultMatchThreshold)
+	svc := NewFaceService(nil, emps, faces, newFakeSpoofStore(), fakeFaceTransact, DefaultMatchThreshold, DefaultLivenessOptions())
 	return svc, emps, faces
 }
 
@@ -187,12 +187,16 @@ func TestFaceService_Verify(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	live := func(v float64) *float64 { return &v }
+	verify := func(svc *FaceService, emp int64, e []float32, score *float64) (*VerifyResult, error) {
+		return svc.Verify(ctx, VerifyInput{EmployeeID: emp, Embedding: e, LivenessScore: score})
+	}
 
-	t.Run("matching probe returns match=true", func(t *testing.T) {
+	t.Run("matching probe with passing liveness returns match=true", func(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
 		enroll(t, svc)
 		// Template head is (0.6, 0.8); probe close to it.
-		res, err := svc.Verify(ctx, 1, vec128(0.61, 0.79), nil)
+		res, err := verify(svc, 1, vec128(0.61, 0.79), live(0.92))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -202,13 +206,16 @@ func TestFaceService_Verify(t *testing.T) {
 		if res.Threshold != DefaultMatchThreshold {
 			t.Fatalf("expected threshold %v, got %v", DefaultMatchThreshold, res.Threshold)
 		}
+		if res.Liveness == nil || !res.Liveness.Passed {
+			t.Fatalf("expected passed liveness info, got %+v", res.Liveness)
+		}
 	})
 
-	t.Run("distant probe returns match=false", func(t *testing.T) {
+	t.Run("distant probe with passing liveness returns match=false", func(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
 		enroll(t, svc)
 		// Orthogonal-ish probe: template head (0.6,0.8), probe head (-0.8,0.6).
-		res, err := svc.Verify(ctx, 1, vec128(-0.8, 0.6), nil)
+		res, err := verify(svc, 1, vec128(-0.8, 0.6), live(0.9))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +229,7 @@ func TestFaceService_Verify(t *testing.T) {
 
 	t.Run("employee without enrollment returns 404-class error", func(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
-		_, err := svc.Verify(ctx, 1, vec128(1, 0), nil)
+		_, err := verify(svc, 1, vec128(1, 0), live(0.9))
 		if !errors.Is(err, ErrNoFaceEnrollment) {
 			t.Fatalf("expected ErrNoFaceEnrollment, got %v", err)
 		}
@@ -230,7 +237,7 @@ func TestFaceService_Verify(t *testing.T) {
 
 	t.Run("unknown employee returns 404-class error", func(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
-		_, err := svc.Verify(ctx, 99, vec128(1, 0), nil)
+		_, err := verify(svc, 99, vec128(1, 0), live(0.9))
 		if !errors.Is(err, ErrEmployeeNotFound) {
 			t.Fatalf("expected ErrEmployeeNotFound, got %v", err)
 		}
@@ -239,7 +246,7 @@ func TestFaceService_Verify(t *testing.T) {
 	t.Run("probe dimension mismatch rejected", func(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
 		enroll(t, svc)
-		_, err := svc.Verify(ctx, 1, make([]float32, 512), nil)
+		_, err := verify(svc, 1, make([]float32, 512), live(0.9))
 		isValidationErr(t, err)
 	})
 
@@ -247,28 +254,25 @@ func TestFaceService_Verify(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
 		enroll(t, svc)
 		bad := 1.5
-		_, err := svc.Verify(ctx, 1, vec128(0.6, 0.8), &bad)
+		_, err := verify(svc, 1, vec128(0.6, 0.8), &bad)
 		isValidationErr(t, err)
 	})
 
-	t.Run("liveness score accepted and ignored for now", func(t *testing.T) {
+	t.Run("missing liveness score rejected when required", func(t *testing.T) {
 		svc, _, _ := newFaceServiceFixture()
 		enroll(t, svc)
-		ok := 0.92
-		res, err := svc.Verify(ctx, 1, vec128(0.61, 0.79), &ok)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !res.Match {
-			t.Fatal("expected match")
-		}
+		_, err := verify(svc, 1, vec128(0.61, 0.79), nil)
+		isValidationErr(t, err)
 	})
 
 	t.Run("invalid threshold falls back to default", func(t *testing.T) {
 		_, emps, faces := newFaceServiceFixture()
-		svc := NewFaceService(nil, emps, faces, fakeFaceTransact, -1)
+		svc := NewFaceService(nil, emps, faces, newFakeSpoofStore(), fakeFaceTransact, -1, DefaultLivenessOptions())
 		if svc.matchThreshold != DefaultMatchThreshold {
 			t.Fatalf("expected default threshold, got %v", svc.matchThreshold)
+		}
+		if svc.liveness.Threshold != DefaultLivenessThreshold {
+			t.Fatalf("expected default liveness threshold, got %v", svc.liveness.Threshold)
 		}
 	})
 }

@@ -5,7 +5,7 @@ info:
     Backend REST API for the employee attendance system.
     Milestone 2 adds face enrollment/verification (on-device embeddings:
     the mobile app extracts embeddings, the server stores and compares them).
-  version: 1.1.0
+  version: 1.2.0
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -258,8 +258,19 @@ paths:
         Compares the probe embedding against the claimed employee's stored
         template using cosine distance. match is true when
         distance < threshold (default 0.50, tunable via FACE_MATCH_THRESHOLD).
-        liveness_score is accepted for the Milestone 3 anti-spoofing pipeline
-        and currently only validated.
+
+        Anti-spoofing (Milestone 3) runs before the comparison:
+        - liveness_score is required (when FACE_LIVENESS_REQUIRED=true) and
+          must be >= FACE_LIVENESS_THRESHOLD (default 0.70); a lower score
+          returns match=false with reject_reason=liveness_too_low and is
+          logged to the spoof_attempts audit table — the embedding is not
+          compared in that case.
+        - After MAX_LIVENESS_FAILURES (default 5) rejected liveness checks
+          within one hour, verification is locked for
+          LIVENESS_LOCKOUT_MINUTES (default 15); the API answers 423 with
+          retry_after in seconds.
+        - An optional challenge_id from GET /api/v1/face/challenge is
+          validated single-use (replay protection).
       requestBody:
         required: true
         content:
@@ -279,6 +290,45 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '423':
+          description: Face verification temporarily locked after repeated failed liveness checks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      locked:
+                        type: boolean
+                        example: true
+                      retry_after:
+                        type: integer
+                        description: Seconds until the lock lifts
+                        example: 840
+                      message:
+                        type: string
+                        example: "face verification locked after repeated failed liveness checks; retry in 840 seconds"
+
+  /api/v1/face/challenge:
+    get:
+      summary: Issue a single-use liveness challenge
+      description: |
+        Returns a challenge (blink or turn_head) for the mobile app to
+        perform on-device. The challenge_id is sent back with the verify
+        call and is validated single-use: unknown, expired (>2 minutes),
+        or reused ids are rejected. Challenges are kept in memory;
+        a multi-instance production deployment should use Redis instead.
+      responses:
+        '200':
+          description: Challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceChallengeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
   securitySchemes:
@@ -563,7 +613,7 @@ components:
 
     FaceVerifyRequest:
       type: object
-      required: [employee_id, embedding]
+      required: [employee_id, embedding, liveness_score]
       properties:
         employee_id:
           type: integer
@@ -580,7 +630,20 @@ components:
           type: number
           minimum: 0
           maximum: 1
-          description: Optional; validated now, enforced by the Milestone 3 anti-spoofing pipeline
+          description: >
+            On-device liveness score, required when FACE_LIVENESS_REQUIRED=true
+            (default). Rejected (match=false, logged to spoof_attempts) when
+            below FACE_LIVENESS_THRESHOLD (default 0.70).
+        device_id:
+          type: string
+          description: Optional device identifier, logged with rejected liveness checks
+          example: "dev-1"
+        challenge_id:
+          type: string
+          description: >
+            Optional single-use challenge id from GET /api/v1/face/challenge.
+            When supplied it must be valid (not expired, not reused).
+          example: "a3f1c9..."
 
     FaceEnrollment:
       type: object
@@ -618,9 +681,46 @@ components:
               example: true
             distance:
               type: number
-              description: Cosine distance between probe and template
+              description: Cosine distance between probe and template (0 when liveness fails — the embedding is not compared)
               example: 0.12
             threshold:
               type: number
               description: Acceptance threshold (match when distance < threshold)
               example: 0.5
+            liveness:
+              type: object
+              description: Liveness gate outcome (present when liveness is required or a score was supplied)
+              properties:
+                score:
+                  type: number
+                  example: 0.92
+                threshold:
+                  type: number
+                  example: 0.7
+                passed:
+                  type: boolean
+                  example: true
+            reject_reason:
+              type: string
+              description: Set when the attempt was rejected before embedding comparison (e.g. liveness_too_low)
+              example: "liveness_too_low"
+
+    FaceChallengeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            challenge_id:
+              type: string
+              description: Single-use challenge id to send back with the verify call
+              example: "a3f1c9e2b4d60718293a4b5c6d7e8f90"
+            type:
+              type: string
+              description: Liveness action the user must perform on-device
+              enum: [blink, turn_head]
+              example: "blink"
+            expires_in:
+              type: integer
+              description: Seconds until the challenge expires
+              example: 120

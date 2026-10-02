@@ -45,7 +45,16 @@ func main() {
 	attendanceH := handler.NewAttendanceHandler(attendanceSvc)
 
 	faceRepo := repository.NewFaceEnrollmentRepository(db)
-	faceSvc := service.NewFaceService(db, employeeRepo, faceRepo, transact, cfg.FaceMatchThreshold)
+	spoofRepo := repository.NewSpoofAttemptRepository(db)
+	faceSvc := service.NewFaceService(db, employeeRepo, faceRepo, spoofRepo, transact,
+		cfg.FaceMatchThreshold,
+		service.LivenessOptions{
+			Threshold:      cfg.FaceLivenessThreshold,
+			Required:       cfg.FaceLivenessRequired,
+			MaxFailures:    cfg.MaxLivenessFailures,
+			LockoutMinutes: cfg.LivenessLockoutMins,
+			Challenges:     service.NewChallengeStore(service.ChallengeTTL),
+		})
 	faceH := handler.NewFaceHandler(faceSvc)
 
 	r := chi.NewRouter()
@@ -70,6 +79,7 @@ func main() {
 			r.Get("/attendance", attendanceH.History)
 			r.Post("/face/enroll", faceH.Enroll)
 			r.Post("/face/verify", faceH.Verify)
+			r.Get("/face/challenge", faceH.Challenge)
 		})
 	})
 
