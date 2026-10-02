@@ -1,0 +1,79 @@
+# VS Code REST Client collection — happy path for the attendance API.
+# Install the "REST Client" extension, then use "Send Request" on each block.
+
+@base = http://localhost:8080/api/v1
+@contentType = application/json
+
+### 1. Health check
+GET http://localhost:8080/health
+
+### 2. Register operator
+# @name register
+POST {{base}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Admin",
+  "email": "admin@example.com",
+  "password": "admin12345"
+}
+
+### 3. Login -> captures access token
+# @name login
+POST {{base}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "admin@example.com",
+  "password": "admin12345"
+}
+
+### 4. Create employee
+POST {{base}}/employees
+Content-Type: {{contentType}}
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+{
+  "employee_no": "EMP001",
+  "name": "Budi Santoso",
+  "department": "IT"
+}
+
+### 5. Check-in
+POST {{base}}/attendance/check-in
+Content-Type: {{contentType}}
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+{
+  "employee_no": "EMP001",
+  "method": "manual",
+  "device_id": "pixel-8-abc123",
+  "platform": "android"
+}
+
+### 6. Check-out
+POST {{base}}/attendance/check-out
+Content-Type: {{contentType}}
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+{
+  "employee_no": "EMP001",
+  "device_id": "pixel-8-abc123",
+  "platform": "android"
+}
+
+### 7. Attendance history
+GET {{base}}/attendance?employee_id=1&limit=20
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+### 8. List employees
+GET {{base}}/employees?active_only=true
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+### 9. Refresh token
+POST {{base}}/auth/refresh
+Content-Type: {{contentType}}
+
+{
+  "refresh_token": "{{login.response.body.data.refresh_token}}"
+}

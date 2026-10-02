@@ -1,0 +1,477 @@
+openapi: 3.0.3
+info:
+  title: Absensi Face Recognition API
+  description: |
+    Backend REST API for the employee attendance system (Milestone 1).
+    Face enrollment/verification endpoints arrive in Milestone 2.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/auth/register:
+    post:
+      summary: Register an operator account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/auth/login:
+    post:
+      summary: Login and receive a token pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Exchange a refresh token for a new token pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/employees:
+    get:
+      summary: List employees
+      parameters:
+        - $ref: '#/components/parameters/ActiveOnly'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Employee list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Register a new employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/attendance/check-in:
+    post:
+      summary: Record a check-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '201':
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceLogResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Employee already checked in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/attendance/check-out:
+    post:
+      summary: Record a check-out against the open check-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckOutRequest'
+      responses:
+        '201':
+          description: Checked out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceLogResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No open check-in found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/attendance:
+    get:
+      summary: Attendance history for an employee
+      parameters:
+        - name: employee_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Defaults to 30 days ago
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Defaults to now
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Attendance logs, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceLogListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+    ActiveOnly:
+      name: active_only
+      in: query
+      schema:
+        type: boolean
+        default: false
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflicting state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: bad_request
+        message:
+          type: string
+          example: email is not valid
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ApiError'
+
+    HealthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              example: ok
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          example: Admin
+        email:
+          type: string
+          format: email
+          example: admin@example.com
+        password:
+          type: string
+          minLength: 8
+          example: secret123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Seconds until the access token expires
+          example: 900
+
+    TokenPairResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TokenPair'
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        employee_no:
+          type: string
+          example: EMP001
+        name:
+          type: string
+          example: Budi Santoso
+        department:
+          type: string
+          example: IT
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateEmployeeRequest:
+      type: object
+      required: [employee_no, name]
+      properties:
+        employee_no:
+          type: string
+          example: EMP001
+        name:
+          type: string
+          example: Budi Santoso
+        department:
+          type: string
+          example: IT
+
+    EmployeeResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Employee'
+
+    EmployeeListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+
+    AttendanceLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        employee_id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [check_in, check_out]
+        method:
+          type: string
+          enum: [face, manual]
+          description: face is reserved for Milestone 2
+        verified:
+          type: boolean
+        liveness_score:
+          type: number
+          nullable: true
+          description: Reserved for Milestone 2 anti-spoofing
+        recorded_at:
+          type: string
+          format: date-time
+
+    CheckInRequest:
+      type: object
+      required: [employee_no]
+      properties:
+        employee_no:
+          type: string
+          example: EMP001
+        method:
+          type: string
+          enum: [face, manual]
+          default: manual
+        device_id:
+          type: string
+          example: pixel-8-abc123
+        platform:
+          type: string
+          example: android
+
+    CheckOutRequest:
+      type: object
+      required: [employee_no]
+      properties:
+        employee_no:
+          type: string
+          example: EMP001
+        device_id:
+          type: string
+        platform:
+          type: string
+
+    AttendanceLogResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/AttendanceLog'
+
+    AttendanceLogListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceLog'
