@@ -55,7 +55,8 @@ func statusFor(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, repository.ErrNotFound),
 		errors.Is(err, service.ErrEmployeeNotFound),
-		errors.Is(err, service.ErrNoOpenCheckIn):
+		errors.Is(err, service.ErrNoOpenCheckIn),
+		errors.Is(err, service.ErrNoFaceEnrollment):
 		return http.StatusNotFound
 	case errors.Is(err, service.ErrInvalidCredentials),
 		errors.Is(err, service.ErrInvalidToken),

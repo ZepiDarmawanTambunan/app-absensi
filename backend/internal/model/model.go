@@ -64,3 +64,15 @@ type TokenPair struct {
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"` // seconds until the access token expires
 }
+
+// FaceEnrollment is the stored face template of an employee.
+// Only the embedding is persisted — never raw face photos
+// (on-device architecture, Milestone 2).
+type FaceEnrollment struct {
+	ID           int64     `json:"id"`
+	EmployeeID   int64     `json:"employee_id"`
+	Embedding    []float32 `json:"-"` // binary blob in DB; never exposed via JSON
+	Dimension    int       `json:"dimension"`
+	QualityScore float64   `json:"quality_score"`
+	EnrolledAt   time.Time `json:"enrolled_at"`
+}

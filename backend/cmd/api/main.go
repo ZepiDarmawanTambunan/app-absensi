@@ -44,6 +44,10 @@ func main() {
 	employeeH := handler.NewEmployeeHandler(employeeSvc)
 	attendanceH := handler.NewAttendanceHandler(attendanceSvc)
 
+	faceRepo := repository.NewFaceEnrollmentRepository(db)
+	faceSvc := service.NewFaceService(db, employeeRepo, faceRepo, transact, cfg.FaceMatchThreshold)
+	faceH := handler.NewFaceHandler(faceSvc)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Logger, middleware.Recoverer)
 
@@ -64,6 +68,8 @@ func main() {
 			r.Post("/attendance/check-in", attendanceH.CheckIn)
 			r.Post("/attendance/check-out", attendanceH.CheckOut)
 			r.Get("/attendance", attendanceH.History)
+			r.Post("/face/enroll", faceH.Enroll)
+			r.Post("/face/verify", faceH.Verify)
 		})
 	})
 

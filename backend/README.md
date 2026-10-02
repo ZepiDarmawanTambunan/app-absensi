@@ -1,4 +1,4 @@
-# Absensi Face Recognition — Backend (Milestone 1)
+# Absensi Face Recognition — Backend (Milestone 2)
 
 REST API backend (Golang + MySQL) untuk aplikasi absensi pegawai.
 Milestone 1: API absensi inti — auth JWT, data pegawai, check-in/check-out manual.
@@ -81,6 +81,8 @@ dan `api/attendance.http` untuk koleksi yang bisa langsung di-run dari VS Code.
 | POST | `/api/v1/attendance/check-in` | JWT | Check-in (`employee_no`, `method`, `device_id?`) |
 | POST | `/api/v1/attendance/check-out` | JWT | Check-out (butuh check-in yang masih terbuka) |
 | GET | `/api/v1/attendance` | JWT | Riwayat (`employee_id`, `from?`, `to?`) |
+| POST | `/api/v1/face/enroll` | JWT | Enroll template wajah pegawai (Milestone 2) |
+| POST | `/api/v1/face/verify` | JWT | Verifikasi wajah 1:1 (Milestone 2) |
 
 Semua response memakai envelope JSON:
 
@@ -94,7 +96,28 @@ Semua response memakai envelope JSON:
 - Check-in ganda tanpa check-out ditolak (`409 already checked in`).
 - Check-out tanpa check-in terbuka ditolak (`404 no open check-in`).
 - Check-out mewarisi `method` dari check-in pasangannya.
-- `method: "face"` sudah disiapkan di skema & validasi, tapi verifikasi wajah
-  baru aktif di Milestone 2; untuk sekarang check-in manual = terverifikasi operator.
+- `method: "face"` didukung untuk check-in; verifikasi wajah tersedia lewat
+  endpoint `/api/v1/face/*` (Milestone 2). Check-in via wajah penuh
+  (termasuk anti-spoofing) menyusul di Milestone 3.
 - Semua write yang melibatkan >1 statement (check-in/out + pencatatan device)
   berjalan dalam satu transaksi database.
+
+## Wajah — enroll & verify (Milestone 2)
+
+Arsitektur **on-device**: aplikasi mobile mengekstrak embedding wajah,
+server hanya menyimpan template dan membandingkan. Foto wajah mentah
+tidak pernah dikirim ke server.
+
+- **Enroll** `POST /api/v1/face/enroll` — kirim 1–5 embedding + `quality_scores`
+  yang sejajar. Frame dengan quality < 0.5 dibuang; minimal 1 frame harus lolos.
+  Template = rata-rata embedding yang lolos, dinormalisasi L2, lalu disimpan
+  (menggantikan template lama dalam 1 transaksi).
+- **Dimensi embedding yang didukung**: 128, 192, 512 (semua frame harus sama).
+- **Verify** `POST /api/v1/face/verify` — selalu **1:1** terhadap `employee_id`
+  yang diklaim (tidak pernah 1:N). `match = true` bila cosine distance
+  < threshold. Response: `{match, distance, threshold}`.
+- **Threshold** default 0.50 via env `FACE_MATCH_THRESHOLD`. Kalibrasi dengan
+  data berlabel (ukur FAR/FRR) sebelum mengubahnya — jangan turunkan threshold
+  hanya untuk "memperbaiki" kegagalan verifikasi.
+- `liveness_score` (0–1, opsional) diterima di verify untuk pipeline
+  anti-spoofing Milestone 3; saat ini baru divalidasi, belum ditegakkan.

@@ -77,3 +77,26 @@ Content-Type: {{contentType}}
 {
   "refresh_token": "{{login.response.body.data.refresh_token}}"
 }
+
+### 10. Enroll face template (Milestone 2)
+# Ganti embedding contoh dengan vektor 128/192/512 dimensi dari aplikasi mobile.
+POST {{base}}/face/enroll
+Content-Type: {{contentType}}
+Authorization: <redacted>
+
+{
+  "employee_id": 1,
+  "embeddings": [[0.12, -0.34, 0.56], [0.11, -0.33, 0.57]],
+  "quality_scores": [0.92, 0.87]
+}
+
+### 11. Verify face 1:1 (Milestone 2)
+POST {{base}}/face/verify
+Content-Type: {{contentType}}
+Authorization: <redacted>
+
+{
+  "employee_id": 1,
+  "embedding": [0.12, -0.34, 0.56],
+  "liveness_score": 0.95
+}

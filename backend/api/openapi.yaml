@@ -2,9 +2,10 @@ openapi: 3.0.3
 info:
   title: Absensi Face Recognition API
   description: |
-    Backend REST API for the employee attendance system (Milestone 1).
-    Face enrollment/verification endpoints arrive in Milestone 2.
-  version: 1.0.0
+    Backend REST API for the employee attendance system.
+    Milestone 2 adds face enrollment/verification (on-device embeddings:
+    the mobile app extracts embeddings, the server stores and compares them).
+  version: 1.1.0
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -220,6 +221,64 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/face/enroll:
+    post:
+      summary: Enroll (or re-enroll) an employee's face template
+      description: |
+        Stores the L2-normalized average of the quality-passing embeddings as
+        the employee's face template, replacing any previous template.
+        Embeddings are extracted on-device; supported dimensions: 128, 192, 512.
+        Frames with quality_score below 0.5 are discarded; at least one frame
+        must pass.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceEnrollRequest'
+      responses:
+        '201':
+          description: Enrolled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceEnrollmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/face/verify:
+    post:
+      summary: Verify a face embedding 1:1 against the claimed employee
+      description: |
+        Compares the probe embedding against the claimed employee's stored
+        template using cosine distance. match is true when
+        distance < threshold (default 0.50, tunable via FACE_MATCH_THRESHOLD).
+        liveness_score is accepted for the Milestone 3 anti-spoofing pipeline
+        and currently only validated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceVerifyRequest'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceVerifyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   securitySchemes:
@@ -475,3 +534,93 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AttendanceLog'
+
+    FaceEnrollRequest:
+      type: object
+      required: [employee_id, embeddings, quality_scores]
+      properties:
+        employee_id:
+          type: integer
+          format: int64
+          example: 1
+        embeddings:
+          type: array
+          description: 1-5 face embeddings extracted on-device (dimensions 128, 192 or 512)
+          minItems: 1
+          maxItems: 5
+          items:
+            type: array
+            items:
+              type: number
+              format: float
+        quality_scores:
+          type: array
+          description: Per-frame quality 0-1, aligned with embeddings; frames below 0.5 are discarded
+          items:
+            type: number
+            minimum: 0
+            maximum: 1
+
+    FaceVerifyRequest:
+      type: object
+      required: [employee_id, embedding]
+      properties:
+        employee_id:
+          type: integer
+          format: int64
+          description: Claimed identity — verification is always 1:1, never 1:N
+          example: 1
+        embedding:
+          type: array
+          description: Probe embedding extracted on-device
+          items:
+            type: number
+            format: float
+        liveness_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Optional; validated now, enforced by the Milestone 3 anti-spoofing pipeline
+
+    FaceEnrollment:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        employee_id:
+          type: integer
+          format: int64
+        dimension:
+          type: integer
+          example: 128
+        quality_score:
+          type: number
+          example: 0.85
+        enrolled_at:
+          type: string
+          format: date-time
+
+    FaceEnrollmentResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FaceEnrollment'
+
+    FaceVerifyResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            match:
+              type: boolean
+              example: true
+            distance:
+              type: number
+              description: Cosine distance between probe and template
+              example: 0.12
+            threshold:
+              type: number
+              description: Acceptance threshold (match when distance < threshold)
+              example: 0.5
