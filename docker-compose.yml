@@ -1,14 +1,4 @@
-# Jalankan seluruh stack app-absensi (MySQL 8 + API Go) di laptop/PC.
-# Cara pakai:
-#   1. Salin .env.example menjadi .env lalu isi JWT_SECRET (string acak panjang).
-#   2. docker compose up --build -d
-#   3. Cek: curl http://localhost:8080/health
-#   4. Login awal: admin@example.com / admin123 (SEGERA ganti setelah login).
-#
-# Agar HP Android/iOS bisa menjangkau API: pastikan HP & laptop satu WiFi,
-# cari IP LAN laptop (mis. 192.168.1.50), lalu di aplikasi Flutter set
-# API_BASE_URL=http://192.168.1.50:8080
-
+version: "3.8"
 services:
   mysql:
     image: mysql:8.0
@@ -22,7 +12,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - absensi-mysql-data:/var/lib/mysql
+      - absensi_mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
       interval: 5s
@@ -39,11 +29,10 @@ services:
       MYSQL_PWD: ${MYSQL_ROOT_PASSWORD:-rootpass}
     volumes:
       - ./backend/migrations:/migrations:ro
-    # Idempoten: aman dijalankan ulang (migrasi memakai IF NOT EXISTS, seed memakai ON DUPLICATE KEY).
     command: >
       sh -c "
         for f in /migrations/000001_init.up.sql /migrations/000002_face.up.sql /migrations/000003_antispoof.up.sql; do
-          echo \"Applying $$f\"; mysql -h mysql -u root app_absensi < \"$$f\";
+          echo 'Applying $$f'; mysql -h mysql -u root app_absensi < \"$$f\";
         done;
         echo 'Applying seed'; mysql -h mysql -u root app_absensi < /migrations/seeds/seed.sql;
         echo 'Migrations done.'
@@ -61,11 +50,11 @@ services:
     environment:
       PORT: "8080"
       DB_DSN: absensi:${MYSQL_PASSWORD:-absensi}@tcp(mysql:3306)/app_absensi?parseTime=true
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET di file .env (string acak panjang)}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET di file .env}
       JWT_ACCESS_TTL: "900"
       JWT_REFRESH_TTL: "604800"
     ports:
       - "8080:8080"
 
 volumes:
-  absensi-mysql-data:
+  absensi_mysql_data:
