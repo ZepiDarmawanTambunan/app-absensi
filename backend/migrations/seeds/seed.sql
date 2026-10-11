@@ -2,6 +2,7 @@
 --   mysql absensi_db < migrations/seeds/seed.sql
 --
 -- Demo operator: admin@example.com / admin123
+-- Password teks: admin123 (hash ini sudah di-encrypt dengan bcrypt)
 -- Change or remove these credentials before any shared/staging use.
 
 INSERT INTO users (name, email, password_hash, role)
